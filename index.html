@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexiMemory // Professional Brain Training</title>
+    <style>
+        :root {
+            --bg: #0a0c10;
+            --surface: #161b22;
+            --accent: #58a6ff;
+            --success: #238636;
+            --error: #da3633;
+            --text: #c9d1d9;
+            --text-bright: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .app-card {
+            background: var(--surface);
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        .header {
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            color: var(--text-bright);
+            margin: 0;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* Stats Bar */
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--accent);
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+
+        /* Word Display Area */
+        #display-area {
+            min-height: 120px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .word-pill {
+            background: #21262d;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #30363d;
+            color: var(--text-bright);
+            animation: popIn 0.3s ease forwards;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Input Controls */
+        textarea {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            color: white;
+            font-family: inherit;
+            resize: none;
+            margin-bottom: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button {
+            background: var(--accent);
+            color: #0d1117;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Results Visualization */
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            text-align: left;
+            margin-top: 1.5rem;
+        }
+
+        .result-item { font-size: 0.9rem; }
+        .correct { color: var(--success); }
+        .missed { color: var(--error); text-decoration: line-through; opacity: 0.6; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    <div class="header">
+        <h1>LexiMemory <small style="font-weight: 200; opacity: 0.5;">v1.0</small></h1>
+    </div>
+
+    <div class="stats">
+        <span id="level-label">Level: 1</span>
+        <span id="timer-label">Ready</span>
+    </div>
+
+    <div id="display-area">
+        <p style="opacity: 0.6;">Memorize the words that appear. They will disappear when time runs out.</p>
+    </div>
+
+    <div id="input-area" class="hidden">
+        <textarea id="user-input" rows="3" placeholder="Type words separated by spaces..."></textarea>
+        <button id="submit-btn">Verify Memory</button>
+    </div>
+
+    <button id="start-btn">Start Session</button>
+    
+    <div id="feedback" class="hidden">
+        <div class="results-grid" id="results-list"></div>
+        <button id="next-btn" style="margin-top: 1rem; background: var(--success); color: white;">Next Level</button>
+    </div>
+</div>
+
+<script>
+    const allWords = ["Bridge", "Ocean", "Summit", "Pixel", "Rocket", "Canvas", "Forest", "Anchor", "Orbit", "Legacy", "Prism", "Vortex", "Breeze", "Canyon", "Echo", "Glacier", "Quartz", "Zenith"];
+    
+    let gameState = {
+        level: 1,
+        currentWords: [],
+        timer: 5,
+        timerInterval: null
+    };
+
+    const els = {
+        startBtn: document.getElementById('start-btn'),
+        nextBtn: document.getElementById('next-btn'),
+        display: document.getElementById('display-area'),
+        inputArea: document.getElementById('input-area'),
+        userInput: document.getElementById('user-input'),
+        submitBtn: document.getElementById('submit-btn'),
+        timerLabel: document.getElementById('timer-label'),
+        levelLabel: document.getElementById('level-label'),
+        feedback: document.getElementById('feedback'),
+        resultsList: document.getElementById('results-list')
+    };
+
+    function startGame() {
+        // Setup state
+        gameState.currentWords = [...allWords]
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 2 + gameState.level); // Level 1 = 3 words, Level 2 = 4, etc.
+        
+        gameState.timer = 3 + (gameState.level * 2); // Dynamic time
+        
+        // UI Reset
+        els.startBtn.classList.add('hidden');
+        els.feedback.classList.add('hidden');
+        els.inputArea.classList.add('hidden');
+        els.display.innerHTML = '';
+        els.userInput.value = '';
+        els.levelLabel.innerText = Level: ${gameState.level};
+
+        // Show Words
+        gameState.currentWords.forEach(word => {
+            const span = document.createElement('div');
+            span.className = 'word-pill';
+            span.innerText = word;
+            els.display.appendChild(span);
+        });
+
+        startTimer();
+    }
+
+    function startTimer() {
+        els.timerLabel.innerText = Time: ${gameState.timer}s;
+        
+        gameState.timerInterval = setInterval(() => {
+            gameState.timer--;
+            els.timerLabel.innerText = Time: ${gameState.timer}s;
+            
+            if (gameState.timer <= 0) {
+                clearInterval(gameState.timerInterval);
+                hideWords();
+            }
+        }, 1000);
+    }
+
+    function hideWords() {
+        els.display.innerHTML = '<p>What do you remember?</p>';
+        els.timerLabel.innerText = "Time's up!";
+        els.inputArea.classList.remove('hidden');
+        els.userInput.focus();
+    }
+
+    function verify() {
+        const input = els.userInput.value.toLowerCase();
+        const userWords = input.split(/[\s,]+/).filter(Boolean);
+        
+        els.inputArea.classList.add('hidden');
+        els.feedback.classList.remove('hidden');
+        els.display.innerHTML = '<h3>Session Report</h3>';
+        els.resultsList.innerHTML = '';
+
+        let correctCount = 0;
+
+        gameState.currentWords.forEach(word => {
+            const isCorrect = userWords.includes(word.toLowerCase());
+            if (isCorrect) correctCount++;
+
+            const item = document.createElement('div');
+            item.className = result-item ${isCorrect ? 'correct' : 'missed'};
+            item.innerText = ${isCorrect ? '✓' : '✕'} ${word};
+            els.resultsList.appendChild(item);
+        });
+
+        if (correctCount === gameState.currentWords.length) {
+            els.nextBtn.innerText = "Level Up!";
+            els.nextBtn.onclick = () => { gameState.level++; startGame(); };
+        } else {
+            els.nextBtn.innerText = "Retry Level";
+            els.nextBtn.style.background = "var(--accent)";
+            els.nextBtn.onclick = () => { startGame(); };
+        }
+    }
+
+    els.startBtn.onclick = startGame;
+    els.submitBtn.onclick = verify;
+
+</script>
+</body>
+</html>
